@@ -1,0 +1,5 @@
+robobrowser
+ipython
+freeze
+python-fire
+selenium

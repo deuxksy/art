@@ -10,4 +10,11 @@ __pycache__/
 
 # due to using tox and pytest
 .tox
+.travis.yml
 .cache
+.idea/
+setup.cfg
+setup.py
+tox.ini
+data/
+test/

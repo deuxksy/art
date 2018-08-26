@@ -18,3 +18,5 @@ setup.py
 tox.ini
 data/
 test/
+x-art/config/*.json
+x-art/config/*.txt

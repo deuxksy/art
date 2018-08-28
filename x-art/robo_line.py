@@ -1,3 +1,4 @@
+import os
 import json
 import logging.config
 import random
@@ -9,10 +10,11 @@ from time import gmtime, strftime
 from robobrowser import RoboBrowser
 
 logging.config.fileConfig('./config/logging.ini')
-# logger = logging.getLogger(os.path.basename(__file__).split('.')[0])
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(os.path.basename(__file__).split('.')[0])
+# logger = logging.getLogger(__name__)
 
 art_dict = {}
+
 
 class Model:
     name = ''
@@ -75,18 +77,20 @@ def login(id, password, cookie=None):
                           parser="lxml")
     if cookie:
         browser.session.cookies.update(cookie)
+        logger.debug('cookie')
     else:
         form = browser.get_form(action='/auth.form')
         form['uid'].value = id
         form['pwd'].value = password
         browser.submit_form(form)
+        logger.debug('login')
     browser.open('https://www.x-art.com/members/models/')
     return browser
 
 
 def next_model_list(browser, index=0, a_element=None, model_dict={}):
     try:
-        time.sleep(random.randint(2, 5))
+        time.sleep(random.randint(2, 3))
         browser.follow_link(a_element)
         logger.debug('list-{}'.format(browser.url))
         model_div_list = browser.find_all('div', class_="browse-item")
@@ -97,9 +101,9 @@ def next_model_list(browser, index=0, a_element=None, model_dict={}):
         logger.debug('back-{}'.format(browser.url))
         next_a_element = browser.find('li', attrs={'class': 'current'}).next_sibling.next_sibling.find('a')
         if next_a_element and ('Next' not in next_a_element.text.strip()):
-            next_model_list(browser, index+1, next_a_element, model_dict)
+            next_model_list(browser, index + 1, next_a_element, model_dict)
     except Exception:
-        logger.debug('error-{}'.format(browser.url))
+        logger.error('error-{}'.format(browser.url))
         traceback.print_exc()
     return model_dict
 
@@ -128,14 +132,14 @@ def get_model_list(browser, model_div_list):
                 model_dict[name] = Model(name, age, country, profile, url).__dict__
                 get_model(browser, model_a_element)
         except Exception:
+            logger.error("{},{},{}".format(index, name, browser.url))
             traceback.print_exc()
-            logger.debug("{},{},{}".format(index, name, browser.url))
         index += 1
     return model_dict
 
 
 def get_model(browser, a_element):
-    time.sleep(random.randint(1, 3))
+    time.sleep(random.randint(1, 2))
     browser.follow_link(a_element)
     logger.debug('model-{}'.format(browser.url))
     lis = browser.find('ul', attrs={'id': 'allupdates'}).find_all('li')
@@ -149,25 +153,75 @@ def get_model(browser, a_element):
 
 
 def get_art(browser, a_element, thumbnail, publish):
-    time.sleep(random.randint(2, 3))
+    time.sleep(random.randint(1, 2))
     browser.follow_link(a_element)
     logger.debug('art-{}'.format(browser.url))
     div_list = browser.find_all('div', attrs={'class': 'small-12 medium-12 large-12 columns'})
-    title = div_list[0].find('h1').text
+    title = div_list[0].find('h1').text.replace('?','')
     featuring = div_list[0].find('h2').text.strip('featuring ').replace(' ', '').split('|')
+    feature_list = ','.join(featuring)
     url = browser.url
     kind = url.split('/')[4]
     download = []
     support = []
 
     if kind == 'galleries':
+        last_a_element = None
         for a in browser.find('ul', attrs={'id': 'drop-download'}).find_all('a'):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
+            last_a_element = a
+        filename = 'D:/Users/crom/OneDrive/사진/Nude/West/X-Art/{}-{}.zip'.format(feature_list, title)
+        if not os.path.exists(filename):
+            before = time.time()
+            response = browser.session.get(download[-1], stream=True)
+            after = time.time()
+            logger.debug('time-{}-{}'.format(kind, after - before))
+
+            with open(filename.format(title), 'wb') as io:
+                try:
+                    io.write(response.content)
+                except Exception:
+                    logger.error('error-{}-{}-{}'.format(featuring, title, url))
+                    traceback.print_exc()
+                else:
+                    logger.debug('write-{}'.format(filename))
+                # io.write(response.content)
+        else:
+            logger.debug('exists-{}'.format(filename))
+
     elif kind == 'videos':
         for a in div_list[2].find('ul', attrs={'id': 'drop-download'}).find_all('a'):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
+        fourK =['MP4-4K' in _support for _support in support]
+        support_index = 0
+        file_download_url = ''
+        if True in fourK:
+            file_download_url = download[fourK.index(True)]
+            support_index = fourK.index(True)
+        else:
+            file_download_url = download[0]
+            support_index = 0
+
+        filename = 'D:/Users/crom/Videos/X-Art/{}-{}.{}'.format(feature_list, title, file_download_url.split('.')[-1][0:3])
+        if not os.path.exists(filename):
+            before = time.time()
+            response = browser.session.get(file_download_url, stream=True)
+            after = time.time()
+            logger.debug('time-{}-{}-{}'.format(kind, support[support_index], after - before))
+
+            with open(filename.format(title), 'wb') as io:
+                try:
+                    io.write(response.content)
+                except Exception:
+                    logger.error('error-{}-{}-{}'.format(featuring, title, url))
+                    traceback.print_exc()
+                else:
+                    logger.debug('write-{}'.format(filename))
+                # io.write(response.content)
+        else:
+            logger.debug('exists-{}'.format(filename))
 
     art_dict['{}-{}'.format(kind, title)] = Art(title=title, kind=kind, url=url, featuring=featuring, support=support,
                                                 download=download, publish=publish.strftime('%Y-%m-%d'),

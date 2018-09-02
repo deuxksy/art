@@ -6,7 +6,6 @@ import time
 import traceback
 from datetime import datetime
 from time import gmtime, strftime
-
 from robobrowser import RoboBrowser
 
 logging.config.fileConfig('./config/logging.ini')
@@ -141,10 +140,15 @@ def get_model_list(browser, model_div_list):
 def get_model(browser, a_element):
     time.sleep(random.randint(1, 2))
     browser.follow_link(a_element)
+    browser.open('https://www.x-art.com/members/models/angelica')
     logger.debug('model-{}'.format(browser.url))
-    lis = browser.find('ul', attrs={'id': 'allupdates'}).find_all('li')
 
-    for li in lis:
+    tags = more_art(browser)
+    ul = browser.find('ul', attrs={'id': 'allupdates'})
+    for tag in tags:
+        ul.append(tag)
+
+    for li in ul.find_all('li'):
         # art a tag element
         a_element = li.find('a')
         thumbnail = li.find('img').get('src')
@@ -157,7 +161,7 @@ def get_art(browser, a_element, thumbnail, publish):
     browser.follow_link(a_element)
     logger.debug('art-{}'.format(browser.url))
     div_list = browser.find_all('div', attrs={'class': 'small-12 medium-12 large-12 columns'})
-    title = div_list[0].find('h1').text.replace('?','')
+    title = div_list[0].find('h1').text.replace('?', '')
     featuring = div_list[0].find('h2').text.strip('featuring ').replace(' ', '').split('|')
     feature_list = ','.join(featuring)
     url = browser.url
@@ -171,7 +175,7 @@ def get_art(browser, a_element, thumbnail, publish):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
             last_a_element = a
-        filename = 'D:/Users/crom/OneDrive/사진/Nude/West/X-Art/{}-{}.zip'.format(feature_list, title)
+        filename = 'V:/Users/crom/OneDrive/사진/Nude/West/X-Art/{}-{}.zip'.format(feature_list, title)
         if not os.path.exists(filename):
             before = time.time()
             response = browser.session.get(download[-1], stream=True)
@@ -204,7 +208,7 @@ def get_art(browser, a_element, thumbnail, publish):
             file_download_url = download[0]
             support_index = 0
 
-        filename = 'D:/Users/crom/Videos/X-Art/{}-{}.{}'.format(feature_list, title, file_download_url.split('.')[-1][0:3])
+        filename = 'V:/Users/crom/OneDrive/Media/X-Art/{}-{}.{}'.format(feature_list, title, file_download_url.split('.')[-1][0:3])
         if not os.path.exists(filename):
             before = time.time()
             response = browser.session.get(file_download_url, stream=True)
@@ -229,6 +233,31 @@ def get_art(browser, a_element, thumbnail, publish):
     # go baack art list
     browser.back()
 
+
+def more_art(browser, tags=[], page=1, model_id=None):
+    from bs4 import BeautifulSoup
+    from bs4.element import Tag
+
+    time.sleep(random.randint(1, 2))
+
+    if not model_id:
+        model_id = browser.find('input', attrs={'id': 'id_model'}).get('value')
+    netxt_url = 'https://www.x-art.com/members/index.php?show=model&pref=detitems&page={}&modelid={}'.format(page, model_id)
+    response = browser.session.get(netxt_url)
+    data = response.json()
+    if data['html']:
+        try:
+            soup = BeautifulSoup(data['html'], "lxml")
+            for i, child in enumerate(soup.body.children):
+                if isinstance(child, Tag):
+                    tags.append(child)
+        except Exception:
+            logger.error(data['html'])
+            traceback.print_exc()
+
+    if int(data['next']) > 1:
+        return more_art(browser, tags, data['next'], model_id)
+    return tags
 
 def save_model(model_dict):
     with open('./config/model.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:

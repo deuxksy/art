@@ -140,7 +140,6 @@ def get_model_list(browser, model_div_list):
 def get_model(browser, a_element):
     time.sleep(random.randint(1, 2))
     browser.follow_link(a_element)
-    browser.open('https://www.x-art.com/members/models/angelica')
     logger.debug('model-{}'.format(browser.url))
 
     tags = more_art(browser)

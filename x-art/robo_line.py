@@ -13,7 +13,8 @@ logger = logging.getLogger(os.path.basename(__file__).split('.')[0])
 # logger = logging.getLogger(__name__)
 
 art_dict = {}
-
+picture = ''
+video = ''
 
 class Model:
     name = ''
@@ -74,10 +75,11 @@ def login(id, password, cookie=None):
     browser = RoboBrowser(history=True,
                           user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
                           parser="lxml")
-    if cookie:
+    if not(id and password):
         browser.session.cookies.update(cookie)
         logger.debug('cookie')
     else:
+        browser.open('https://www.x-art.com/members/')
         form = browser.get_form(action='/auth.form')
         form['uid'].value = id
         form['pwd'].value = password
@@ -174,24 +176,25 @@ def get_art(browser, a_element, thumbnail, publish):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
             last_a_element = a
-        filename = 'V:/Users/crom/OneDrive/사진/Nude/West/X-Art/{}-{}.zip'.format(feature_list, title)
-        if not os.path.exists(filename):
-            before = time.time()
-            response = browser.session.get(download[-1], stream=True)
-            after = time.time()
-            logger.debug('time-{}-{}'.format(kind, after - before))
-
-            with open(filename.format(title), 'wb') as io:
-                try:
-                    io.write(response.content)
-                except Exception:
-                    logger.error('error-{}-{}-{}'.format(featuring, title, url))
-                    traceback.print_exc()
-                else:
-                    logger.debug('write-{}'.format(filename))
-                # io.write(response.content)
-        else:
-            logger.debug('exists-{}'.format(filename))
+        folder = '{}/{}-{}'.format(picture, feature_list, title)
+        if not os.path.exists(folder):
+            filename = '{}.zip'.format(folder)
+            if not os.path.exists(filename):
+                before = time.time()
+                response = browser.session.get(download[-1], stream=True)
+                after = time.time()
+                logger.debug('time-{}-{}'.format(kind, after - before))
+                with open(filename.format(title), 'wb') as io:
+                    try:
+                        io.write(response.content)
+                    except Exception:
+                        logger.error('error-{}-{}-{}'.format(featuring, title, url))
+                        traceback.print_exc()
+                    else:
+                        logger.debug('write-{}'.format(filename))
+                    # io.write(response.content)
+            else:
+                logger.debug('exists-{}'.format(filename))
 
     elif kind == 'videos':
         for a in div_list[2].find('ul', attrs={'id': 'drop-download'}).find_all('a'):
@@ -207,7 +210,7 @@ def get_art(browser, a_element, thumbnail, publish):
             file_download_url = download[0]
             support_index = 0
 
-        filename = 'V:/Users/crom/OneDrive/Media/X-Art/{}-{}.{}'.format(feature_list, title, file_download_url.split('.')[-1][0:3])
+        filename = '{}/{}-{}.{}'.format(video, feature_list, title, file_download_url.split('.')[-1][0:3])
         if not os.path.exists(filename):
             before = time.time()
             response = browser.session.get(file_download_url, stream=True)
@@ -251,12 +254,13 @@ def more_art(browser, tags=[], page=1, model_id=None):
                 if isinstance(child, Tag):
                     tags.append(child)
         except Exception:
-            logger.error(data['html'])
+            logger.error(data)
             traceback.print_exc()
 
     if int(data['next']) > 1:
         return more_art(browser, tags, data['next'], model_id)
     return tags
+
 
 def save_model(model_dict):
     with open('./config/model.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:
@@ -268,8 +272,29 @@ def save_art(art_dict):
         json.dump(art_dict, io)
 
 
+def init():
+    if not os.path.exists(picture):
+        os.makedirs(picture)
+    if not os.path.exists(video):
+        os.makedirs(video)
+
+
 if __name__ == '__main__':
-    browser = login('', '', load_cookie())
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--id', help='usename')
+    parser.add_argument('--password', help='password')
+    parser.add_argument('--picture', default='../data/picture', help='picture save folder')
+    parser.add_argument('--video', default='../data/video', help='video save folder')
+    args = parser.parse_args()
+
+    picture = args.picture
+    video = args.video
+
+    init()
+
+    browser = login(args.id, args.password, load_cookie())
     with open('./config/checkpoint.txt', 'a') as io:
         io.write('\n{}\n'.format(datetime.now().strftime('%y%m%d-%H%M%S')))
     model_dict = next_model_list(browser, 0, browser.find(id='li_M'))

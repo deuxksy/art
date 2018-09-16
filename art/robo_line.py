@@ -1,20 +1,24 @@
-import os
 import json
 import logging.config
+import os
 import random
+import sys
 import time
 import traceback
 from datetime import datetime
 from time import gmtime, strftime
-from robobrowser import RoboBrowser
 
-logging.config.fileConfig('./config/logging.ini')
+from robobrowser import RoboBrowser
+from selenium.webdriver.support.expected_conditions import alert_is_present
+
+logging.config.fileConfig('resources/logging.ini')
 logger = logging.getLogger(os.path.basename(__file__).split('.')[0])
 # logger = logging.getLogger(__name__)
 
 art_dict = {}
 picture = ''
 video = ''
+
 
 class Model:
     name = ''
@@ -67,30 +71,39 @@ class Art:
 
 
 def load_cookie():
-    with open('./config/cookie.json') as io:
+    with open('resources/cookie.json') as io:
         return json.load(io)
 
 
-def login(id, password, cookie=None):
+def login(id, password):
     browser = RoboBrowser(history=True,
                           user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
                           parser="lxml")
-    if not(id and password):
-        browser.session.cookies.update(cookie)
-        logger.debug('cookie')
+    try:
+        if True:
+        # if not (id and password):
+            browser.session.cookies.update(load_cookie())
+            logger.debug('cookie')
+        else:
+            browser.open('https://www.x-art.com/members/')
+            form = browser.get_form(action='/auth.form')
+            form['uid'].value = id
+            form['pwd'].value = password
+            browser.submit_form(form)
+            logger.debug('login')
+    except Exception:
+        logger.error('error-{}'.format(browser.url))
+        traceback.print_exc()
+        sys.exit(0)
     else:
-        browser.open('https://www.x-art.com/members/')
-        form = browser.get_form(action='/auth.form')
-        form['uid'].value = id
-        form['pwd'].value = password
-        browser.submit_form(form)
-        logger.debug('login')
-    browser.open('https://www.x-art.com/members/models/')
+        browser.open('https://www.x-art.com/members/models/')
     return browser
 
 
 def next_model_list(browser, index=0, a_element=None, model_dict={}):
     try:
+        logger.debug('list-{}'.format(browser.url))
+
         time.sleep(random.randint(2, 3))
         browser.follow_link(a_element)
         logger.debug('list-{}'.format(browser.url))
@@ -149,12 +162,16 @@ def get_model(browser, a_element):
     for tag in tags:
         ul.append(tag)
 
-    for li in ul.find_all('li'):
-        # art a tag element
-        a_element = li.find('a')
-        thumbnail = li.find('img').get('src')
-        publish = li.find_all('h2')[1].text
-        get_art(browser, a_element, thumbnail, datetime.strptime(publish, '%b %d, %Y'))
+    for li in ul.find_all('li', attrs={'class': 'flex-item small-6 medium-4 large-3'}):
+        try:
+            # art a tag element
+            a_element = li.find('a')
+            thumbnail = li.find('img').get('src')
+            publish = li.find_all('h2')[1].text
+            get_art(browser, a_element, thumbnail, datetime.strptime(publish, '%b %d, %Y'))
+        except Exception:
+            logger.error("{},{}".format(a_element, browser.url))
+            traceback.print_exc()
 
 
 def get_art(browser, a_element, thumbnail, publish):
@@ -176,15 +193,15 @@ def get_art(browser, a_element, thumbnail, publish):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
             last_a_element = a
-        folder = '{}/{}-{}'.format(picture, feature_list, title)
+        folder = '{}/{}-{}'.format(picture, feature_list, title.replace(':', ''))
         if not os.path.exists(folder):
             filename = '{}.zip'.format(folder)
             if not os.path.exists(filename):
                 before = time.time()
                 response = browser.session.get(download[-1], stream=True)
                 after = time.time()
-                logger.debug('time-{}-{}'.format(kind, after - before))
-                with open(filename.format(title), 'wb') as io:
+                logger.debug('time-{}-{}-{}'.format(kind, title, after - before))
+                with open(filename, 'wb') as io:
                     try:
                         io.write(response.content)
                     except Exception:
@@ -200,7 +217,7 @@ def get_art(browser, a_element, thumbnail, publish):
         for a in div_list[2].find('ul', attrs={'id': 'drop-download'}).find_all('a'):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
-        fourK =['MP4-4K' in _support for _support in support]
+        fourK = ['MP4-4K' in _support for _support in support]
         support_index = 0
         file_download_url = ''
         if True in fourK:
@@ -210,14 +227,13 @@ def get_art(browser, a_element, thumbnail, publish):
             file_download_url = download[0]
             support_index = 0
 
-        filename = '{}/{}-{}.{}'.format(video, feature_list, title, file_download_url.split('.')[-1][0:3])
+        filename = '{}/{}-{}.{}'.format(video, feature_list, title.replace(':', ''), file_download_url.split('.')[-1][0:3])
         if not os.path.exists(filename):
             before = time.time()
             response = browser.session.get(file_download_url, stream=True)
             after = time.time()
-            logger.debug('time-{}-{}-{}'.format(kind, support[support_index], after - before))
-
-            with open(filename.format(title), 'wb') as io:
+            logger.debug('time-{}-{}-{}-{}'.format(kind, support[support_index], title, after - before))
+            with open(filename, 'wb') as io:
                 try:
                     io.write(response.content)
                 except Exception:
@@ -244,7 +260,8 @@ def more_art(browser, tags=[], page=1, model_id=None):
 
     if not model_id:
         model_id = browser.find('input', attrs={'id': 'id_model'}).get('value')
-    netxt_url = 'https://www.x-art.com/members/index.php?show=model&pref=detitems&page={}&modelid={}'.format(page, model_id)
+    netxt_url = 'https://www.x-art.com/members/index.php?show=model&pref=detitems&page={}&modelid={}'.format(page,
+                                                                                                             model_id)
     response = browser.session.get(netxt_url)
     data = response.json()
     if data['html']:
@@ -263,12 +280,12 @@ def more_art(browser, tags=[], page=1, model_id=None):
 
 
 def save_model(model_dict):
-    with open('./config/model.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:
+    with open('data/model.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:
         json.dump(model_dict, io)
 
 
 def save_art(art_dict):
-    with open('./config/art.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:
+    with open('data/art.{}.json'.format(strftime("%y%m%d%H%M%S", gmtime())), 'w') as io:
         json.dump(art_dict, io)
 
 
@@ -283,22 +300,17 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--id', help='usename')
-    parser.add_argument('--password', help='password')
-    parser.add_argument('--picture', default='../data/picture', help='picture save folder')
-    parser.add_argument('--video', default='../data/video', help='video save folder')
+    parser.add_argument('--id', default='', help='usename', required=False)
+    parser.add_argument('--password', default='', help='password', required=False)
+    parser.add_argument('--picture', default='D:/Torrent/File/picture', help='picture save folder')
+    parser.add_argument('--video', default='D:/Torrent/File/video', help='video save folder')
     args = parser.parse_args()
 
     picture = args.picture
     video = args.video
-
     init()
 
-    browser = login(args.id, args.password, load_cookie())
-    with open('./config/checkpoint.txt', 'a') as io:
-        io.write('\n{}\n'.format(datetime.now().strftime('%y%m%d-%H%M%S')))
+    browser = login(args.id, args.password)
     model_dict = next_model_list(browser, 0, browser.find(id='li_M'))
     save_model(model_dict)
     save_art(art_dict)
-    with open('./config/checkpoint.txt', 'a') as io:
-        io.write('{}\n'.format(datetime.now().strftime('%y%m%d-%H%M%S')))

@@ -12,11 +12,9 @@ __pycache__/
 .tox
 .travis.yml
 .cache
+
+# idea
 .idea/
-setup.cfg
-setup.py
-tox.ini
-data/
-test/
-x-art/config/*.json
-x-art/config/*.txt
+
+# auth config
+x-art/resources/cookie.json

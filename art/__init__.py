@@ -1,9 +1,6 @@
 import os
 
-path = os.path.abspath(__file__)
-dir_path = os.path.dirname(path)
-
-PROJECT_HOME = dir_path
+PROJECT_HOME = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():

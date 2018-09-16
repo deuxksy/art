@@ -75,7 +75,7 @@ def load_cookie():
         return json.load(io)
 
 
-def login(id, password):
+def login(username, password):
     browser = RoboBrowser(history=True,
                           user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
                           parser="lxml")
@@ -87,7 +87,7 @@ def login(id, password):
         else:
             browser.open('https://www.x-art.com/members/')
             form = browser.get_form(action='/auth.form')
-            form['uid'].value = id
+            form['uid'].value = username
             form['pwd'].value = password
             browser.submit_form(form)
             logger.debug('login')
@@ -173,7 +173,6 @@ def get_model(browser, a_element):
             logger.error("{},{}".format(a_element, browser.url))
             traceback.print_exc()
 
-
 def get_art(browser, a_element, thumbnail, publish):
     time.sleep(random.randint(1, 2))
     browser.follow_link(a_element)
@@ -188,11 +187,9 @@ def get_art(browser, a_element, thumbnail, publish):
     support = []
 
     if kind == 'galleries':
-        last_a_element = None
         for a in browser.find('ul', attrs={'id': 'drop-download'}).find_all('a'):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
-            last_a_element = a
         folder = '{}/{}-{}'.format(picture, feature_list, title.replace(':', ''))
         if not os.path.exists(folder):
             filename = '{}.zip'.format(folder)
@@ -217,12 +214,12 @@ def get_art(browser, a_element, thumbnail, publish):
         for a in div_list[2].find('ul', attrs={'id': 'drop-download'}).find_all('a'):
             support.append(a.text.replace('\xa0', '').replace(' ', '').replace('\n', '').replace(')', ') '))
             download.append(a.attrs['href'])
-        fourK = ['MP4-4K' in _support for _support in support]
+        fourk = ['MP4-4K' in _support for _support in support]
         support_index = 0
         file_download_url = ''
-        if True in fourK:
-            file_download_url = download[fourK.index(True)]
-            support_index = fourK.index(True)
+        if True in fourk:
+            file_download_url = download[fourk.index(True)]
+            support_index = fourk.index(True)
         else:
             file_download_url = download[0]
             support_index = 0
@@ -300,7 +297,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--id', default='', help='usename', required=False)
+    parser.add_argument('--username', default='', help='usename', required=False)
     parser.add_argument('--password', default='', help='password', required=False)
     parser.add_argument('--picture', default='D:/Torrent/File/picture', help='picture save folder')
     parser.add_argument('--video', default='D:/Torrent/File/video', help='video save folder')
@@ -310,7 +307,7 @@ if __name__ == '__main__':
     video = args.video
     init()
 
-    browser = login(args.id, args.password)
+    browser = login(args.username, args.password)
     model_dict = next_model_list(browser, 0, browser.find(id='li_M'))
     save_model(model_dict)
     save_art(art_dict)
